@@ -14,10 +14,7 @@ The `main` branch contains the starter code for a basic React project (initializ
 - Node.js ([Installation](https://nodejs.org/en))
 - MongoDB ([Community edition](https://www.mongodb.com/docs/manual/installation/))
 
-### Recommended VsCode extensions
 
-- [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-- [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
 
 ## Setup
 
@@ -45,19 +42,19 @@ root/
     .env
 ```
 
-`client/.env`
+In `client/.env`, put:
 
 ```
 NODE_ENV=development
 REACT_APP_SERVER_URL=http://localhost:8080
 ```
 
-`server/.env`
+In `server/.env`, put:
 
 ```
 NODE_ENV=development
 PORT=8080
-MONGO_URI=mongodb:<link to mongo databse>
+MONGO_URI=mongodb:<link to your mongo database>
 CLIENT_URL=http://localhost:5173
 ```
 
