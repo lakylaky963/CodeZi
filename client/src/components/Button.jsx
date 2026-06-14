@@ -1,24 +1,14 @@
-import { styled, ButtonBase } from '@mui/material'
-
-
 /**
- * Example button component using material UI
+ * Standardized Tailwind Button
+ * Replaces MUI ButtonBase to reduce bundle size and maintain design consistency.
  */
-const CustomButton = styled(ButtonBase)({
-  padding: '12px 16px',
-  borderRadius: '20px',
-  backgroundColor: '#93da93',
-  transition: 'transform 100ms ease',
-
-  '&:hover': {
-    backgroundColor: '#a2e1a2',
-  },
-
-  '&:active': {
-    transform: 'scale(0.96)',
-  },
-})
-
-export default function Button({ children, ...props }) {
-  return <CustomButton {...props}>{children}</CustomButton>
+export default function Button({ children, className = '', ...props }) {
+  return (
+    <button 
+      className={`px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-medium transition-all active:scale-95 shadow-sm hover:shadow-md ${className}`} 
+      {...props}
+    >
+      {children}
+    </button>
+  )
 }
