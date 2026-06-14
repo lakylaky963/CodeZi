@@ -40,15 +40,15 @@ const experience = [
 
 export default function Resume() {
   return (
-    <section className="grid lg:grid-cols-4 gap-12 animate-in fade-in duration-700">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid lg:grid-cols-4 gap-12 animate-in fade-in duration-700">
       <aside className="lg:col-span-1 space-y-10">
         <div className="space-y-4">
           <div className="w-16 h-16 rounded-3xl bg-indigo-500 flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-indigo-500/40">SD</div>
-          <h1 className="text-3xl font-bold text-white leading-tight">Software Developer</h1>
-          <p className="text-slate-400 text-sm leading-relaxed">Crafting production-grade experiences from database schema to interface.</p>
+          <h1 className="text-3xl font-bold text-slate-100 leading-tight">Software Developer</h1>
+          <p className="text-slate-300 text-sm leading-relaxed">Crafting production-grade experiences from database schema to interface.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {skills.map(s => <span key={s} className="px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-300 uppercase tracking-widest">{s}</span>)}
+          {skills.map(s => <span key={s} className="px-3 py-1 rounded-full bg-slate-800/50 border border-slate-700/50 text-[10px] font-bold text-slate-300 uppercase tracking-widest">{s}</span>)}
         </div>
       </aside>
       <div className="lg:col-span-3 space-y-12">
@@ -56,18 +56,18 @@ export default function Resume() {
           <h2 className="text-xs font-black text-indigo-500 uppercase tracking-[0.2em] flex items-center gap-2">
             <Icon name="spark" size={14} /> Professional Summary
           </h2>
-          <p className="text-xl text-slate-300 leading-relaxed font-medium">I bridge frontend craft and backend reliability: component systems, API integration, data modeling, and deployment pipelines that teams can scale.</p>
+          <p className="text-xl text-slate-200 leading-relaxed font-medium">I bridge frontend craft and backend reliability: component systems, API integration, data modeling, and deployment pipelines that teams can scale.</p>
         </section>
         <section className="space-y-8">
           <h2 className="text-xs font-black text-indigo-500 uppercase tracking-[0.2em] flex items-center gap-2">
             <Icon name="code" size={14} /> Experience
           </h2>
           <div className="space-y-10">
-            {experience.map(exp => (
-              <div key={exp.role} className="relative pl-8 border-l border-slate-800">
+            {experience.map((exp) => (
+              <div key={exp.role} className="relative pl-8 border-l border-slate-700/50">
                 <div className="absolute w-3 h-3 rounded-full bg-indigo-500 -left-[6.5px] top-1.5 ring-4 ring-slate-950" />
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-lg font-bold text-white">{exp.role}</h3>
+                  <h3 className="text-lg font-bold text-slate-100">{exp.role}</h3>
                   <span className="text-xs font-mono text-slate-500">{exp.years}</span>
                 </div>
                 <div className="text-indigo-400 text-sm font-bold mb-4">{exp.company}</div>

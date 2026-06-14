@@ -32,13 +32,13 @@ export default function RunnerCanvas({ isDark, onGameOver, running, resetKey }) 
     const colors = isDark
       ? {
           bg: "#0f172a",
-          grid: "rgba(99,102,241,0.08)",
-          ground: "#6366f1",
-          player: "#22d3ee",
-          playerGlow: "rgba(34,211,238,0.6)",
-          obstacle: "#f472b6",
-          obstacleGlow: "rgba(244,114,182,0.6)",
-          text: "#e2e8f0",
+          grid: "rgba(99, 102, 241, 0.08)", // Indigo 500 with alpha
+          ground: "#6366f1", // Indigo 500
+          player: "#818cf8", // Indigo 400
+          playerGlow: "rgba(99, 102, 241, 0.4)", // Indigo 500 with alpha
+          obstacle: "#f43f5e", // Rose 500
+          obstacleGlow: "rgba(244, 63, 94, 0.3)", // Rose 500 with alpha
+          text: "#f8fafc", // Slate 50
         }
       : {
           bg: "#f8fafc",

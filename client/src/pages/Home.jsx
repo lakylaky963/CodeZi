@@ -1,118 +1,148 @@
-import { Link } from 'react-router-dom'
-import Icon from '../components/Icon.jsx'
+import { Link } from "react-router-dom";
+import Icon from "../components/Icon.jsx";
 
 const destinations = [
   {
-    to: '/game',
-    title: 'Play Memory Grid',
-    text: 'A fast browser game with automatic MongoDB score saving.',
-    icon: 'game',
+    to: "/users",
+    title: "User Dashboard",
+    text: "Create, edit, search, and delete MongoDB user records through the existing CRUD client.",
+    icon: "users",
+    accent: "text-cyan-700 dark:text-cyan-200",
   },
   {
-    to: '/users',
-    title: 'Manage Users',
-    text: 'Create, search, update, and delete users through your existing API.',
-    icon: 'users',
+    to: "/game",
+    title: "Runner Game",
+    text: "Save player scores using firstName for the name and lastName for encoded score metadata.",
+    icon: "game",
+    accent: "text-emerald-700 dark:text-emerald-200",
   },
   {
-    to: '/resume',
-    title: 'View Resume',
-    text: 'A polished developer profile with skills, projects, and experience.',
-    icon: 'code',
+    to: "/tech",
+    title: "Ops Showcase",
+    text: "Inspect the live API URL, request flow, score encoding, and deployment topology.",
+    icon: "layers",
+    accent: "text-indigo-700 dark:text-indigo-200",
   },
-  {
-    to: '/tech',
-    title: 'Explore Stack',
-    text: 'See how the MERN architecture, Vite, hosting, and state fit together.',
-    icon: 'layers',
-  },
-]
+];
 
-const metrics = [
-  ['5', 'Production pages'],
-  ['100%', 'Existing API compatible'],
-  ['Vite', 'Fast client build'],
-]
+const stats = [
+  ["5", "Routed views"],
+  ["CRUD", "API contract"],
+  ["2 fields", "Mongo schema"],
+  ["Vite", "Frontend runtime"],
+];
 
 export default function Home() {
   return (
-    <section className="animate-in fade-in duration-700">
-      <div className="grid lg:grid-cols-2 gap-12 items-center mb-24">
-        <div className="space-y-8">
-          <span className="inline-block px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold uppercase tracking-widest">
-            v2.0 Architecture
+    <section className="space-y-10">
+      <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="space-y-7">
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200">
+            <Icon name="spark" size={15} />
+            Operational MERN UI
           </span>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white leading-tight">
-            Ship polished <span className="text-indigo-500">MERN</span> apps faster.
-          </h1>
-          <p className="text-xl text-slate-400 max-w-xl leading-relaxed">
-            A premium, production-ready interface for your boilerplate. Dashboard workflows, database-backed gaming, and technical showcases built with modern SaaS principles.
-          </p>
-          <div className="flex flex-wrap gap-4 pt-4">
-            <Link to="/game" className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-2 group">
-              Launch Game
-              <Icon name="arrow" className="group-hover:translate-x-1 transition-transform" />
+
+          <div className="space-y-5">
+            <h1 className="max-w-4xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl dark:text-white">
+              A polished command surface for your full-stack app.
+            </h1>
+            <p className="max-w-2xl text-base leading-8 text-slate-600 sm:text-lg dark:text-slate-300">
+              The dashboard, game, and stack explorer now share one responsive
+              visual system with real theme switching, tactile controls, and
+              backend-aware data states.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link
+              to="/users"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-700 px-5 text-sm font-black text-white shadow-lg shadow-cyan-700/20 transition-all hover:-translate-y-0.5 hover:bg-cyan-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 active:translate-y-0"
+            >
+              Open Dashboard
+              <Icon name="arrow" size={18} />
             </Link>
-            <Link to="/users" className="px-8 py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl font-bold transition-all border border-slate-700">
-              Management Dashboard
+            <Link
+              to="/tech"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500 active:translate-y-0 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            >
+              Inspect Stack
+              <Icon name="layers" size={18} />
             </Link>
           </div>
         </div>
 
-        <div className="relative group lg:block hidden">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
-          <div className="relative bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-            <div className="h-10 border-b border-slate-800 bg-slate-900/50 flex items-center px-4 gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/40" />
-              <div className="w-3 h-3 rounded-full bg-amber-500/20 border border-amber-500/40" />
-              <div className="w-3 h-3 rounded-full bg-emerald-500/20 border border-emerald-500/40" />
-            </div>
-            <div className="p-8 grid grid-cols-2 gap-4">
-              <div className="space-y-4">
-                <div className="h-24 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 p-4 flex flex-col justify-end">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/20 mb-2 flex items-center justify-center text-indigo-400">
-                    <Icon name="database" size={16} />
-                  </div>
-                  <span className="text-xs font-medium text-indigo-300">Database Sync</span>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/70 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+          <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
+            <span className="h-3 w-3 rounded-full bg-rose-400" />
+            <span className="h-3 w-3 rounded-full bg-amber-400" />
+            <span className="h-3 w-3 rounded-full bg-emerald-400" />
+            <span className="ml-auto text-xs font-bold text-slate-400">live-preview</span>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                    API base
+                  </p>
+                  <p className="mt-1 truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {import.meta.env.VITE_SERVER_URL || "VITE_SERVER_URL not set"}
+                  </p>
                 </div>
-                <div className="h-40 rounded-2xl bg-slate-800 border border-slate-700"></div>
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200">
+                  ready
+                </span>
               </div>
-              <div className="space-y-4 pt-8">
-                <div className="h-48 rounded-2xl bg-slate-800 border border-slate-700"></div>
-                <div className="h-16 rounded-2xl bg-slate-800/50 border border-slate-700"></div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-cyan-700 p-4 text-white">
+                <Icon name="database" size={22} />
+                <p className="mt-5 text-2xl font-black">firstName</p>
+                <p className="text-sm text-cyan-100">Player or user name</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <Icon name="game" size={22} className="text-emerald-600 dark:text-emerald-300" />
+                <p className="mt-5 text-2xl font-black text-slate-950 dark:text-white">lastName</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Encoded score metadata</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-24 py-12 border-y border-slate-800/50">
-        {metrics.map(([value, label]) => (
-          <div key={label} className="text-center">
-            <div className="text-3xl font-black text-white mb-1">{value}</div>
-            <div className="text-sm font-bold text-slate-500 uppercase tracking-widest">{label}</div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map(([value, label]) => (
+          <div
+            key={label}
+            className="rounded-xl border border-slate-200 bg-white p-5 transition-colors dark:border-slate-800 dark:bg-slate-900"
+          >
+            <p className="text-2xl font-black text-slate-950 dark:text-white">{value}</p>
+            <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">{label}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {destinations.map((item, index) => (
+      <div className="grid gap-4 md:grid-cols-3">
+        {destinations.map((item) => (
           <Link
             key={item.to}
             to={item.to}
-            className="p-8 rounded-3xl bg-slate-900 border border-slate-800 hover:border-indigo-500/50 transition-all hover:shadow-xl hover:shadow-indigo-500/5 group"
+            className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-cyan-300 hover:shadow-xl hover:shadow-slate-200/70 focus:outline-none focus:ring-2 focus:ring-cyan-500 active:translate-y-0 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-cyan-700 dark:hover:shadow-black/20"
           >
-            <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-indigo-500 group-hover:text-white transition-all mb-6">
-              <Icon name={item.icon} />
-            </div>
-            <h3 className="text-xl font-bold mb-3 text-white">{item.title}</h3>
-            <p className="text-slate-400 text-sm leading-relaxed mb-6">{item.text}</p>
-            <span className="flex items-center gap-2 text-xs font-bold text-indigo-400 group-hover:gap-4 transition-all uppercase tracking-widest">
-              Explore Module <Icon name="arrow" size={14} />
+            <span className={`grid h-11 w-11 place-items-center rounded-xl bg-slate-100 transition-transform group-hover:scale-105 dark:bg-slate-800 ${item.accent}`}>
+              <Icon name={item.icon} size={21} />
+            </span>
+            <h2 className="mt-5 text-lg font-black text-slate-950 dark:text-white">{item.title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{item.text}</p>
+            <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-cyan-700 transition-all group-hover:gap-3 dark:text-cyan-300">
+              Open
+              <Icon name="arrow" size={16} />
             </span>
           </Link>
         ))}
       </div>
     </section>
-  )
+  );
 }

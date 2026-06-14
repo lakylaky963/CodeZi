@@ -1,401 +1,244 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { createUser, getUser, getUsers, updateUser } from '../api/user'
-import Icon from '../components/Icon.jsx'
-import Toast from '../components/Toast.jsx'
-import { useTheme } from '../context/ThemeContext'
-import { formatScoreProfile, getScoreUsers } from '../utils/scoreboard.js'
-
-const GAME = {
-  width: 900,
-  height: 280,
-  groundY: 220,
-  gravity: 2000,
-  jumpVelocity: -760,
-  baseSpeed: 380,
-  speedRamp: 10,
-  spawnMin: 0.75,
-  spawnMax: 1.7,
-}
-
-function createPlayer() {
-  return { x: 50, y: GAME.groundY - 38, width: 34, height: 38, vy: 0, grounded: true }
-}
-
-function createObstacle(speed) {
-  const variants = [
-    { width: 18, height: 36 },
-    { width: 26, height: 50 },
-    { width: 16, height: 28 },
-  ]
-  const v = variants[Math.floor(Math.random() * variants.length)]
-  return { x: GAME.width + 20, y: GAME.groundY - v.height, width: v.width, height: v.height, speed }
-}
-
-function collides(player, obstacle) {
-  const pad = 5
-  return (
-    player.x + pad < obstacle.x + obstacle.width &&
-    player.x + player.width - pad > obstacle.x &&
-    player.y + pad < obstacle.y + obstacle.height &&
-    player.y + player.height - pad > obstacle.y
-  )
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
-}
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createUser, getUser, getUsers, updateUser } from "../api/user";
+import Icon from "../components/Icon.jsx";
+import Toast from "../components/Toast.jsx";
+import RunnerCanvas from "../components/game/RunnerCanvas.jsx";
+import { useTheme } from "../context/ThemeContext.jsx";
+import { formatScoreProfile, getScoreUsers } from "../utils/scoreboard.js";
 
 export default function Game() {
-  const { theme } = useTheme()
-  const canvasRef = useRef(null)
-  const stateRef = useRef(null)
-  const rafRef = useRef(null)
-  const runningRef = useRef(false)
+  const { theme } = useTheme();
+  const runningRef = useRef(false);
+  const savedRoundRef = useRef(false);
 
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [gameOver, setGameOver] = useState(false)
-  const [score, setScore] = useState(0)
-  const [resetKey, setResetKey] = useState(0)
-  const [playerName, setPlayerName] = useState('StudioPlayer')
-  const [scoreboard, setScoreboard] = useState([])
-  const [toast, setToast] = useState(null)
-  const [isSaving, setIsSaving] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [score, setScore] = useState(0);
+  const [resetKey, setResetKey] = useState(0);
+  const [playerName, setPlayerName] = useState("");
+  const [scoreboard, setScoreboard] = useState([]);
+  const [toast, setToast] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingScores, setIsLoadingScores] = useState(true);
 
   const refreshScoreboard = useCallback(async () => {
+    setIsLoadingScores(true);
     try {
-      const { data } = await getUsers()
-      setScoreboard(getScoreUsers(data.users || []).slice(0, 10))
+      const { data } = await getUsers();
+      setScoreboard(getScoreUsers(data?.users || []).slice(0, 10));
     } catch {
-      setToast({ type: 'error', message: 'Could not load live scoreboard.' })
+      setToast({ type: "error", message: "Could not load the live scoreboard." });
+    } finally {
+      setIsLoadingScores(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    refreshScoreboard()
-  }, [refreshScoreboard])
+    refreshScoreboard();
+  }, [refreshScoreboard]);
 
-  // Derived theme state for canvas colors
-  const isDark = theme === 'dark'
+  const startGame = useCallback(() => {
+    setResetKey((value) => value + 1);
+    runningRef.current = true;
+    savedRoundRef.current = false;
+    setIsPlaying(true);
+    setGameOver(false);
+    setScore(0);
+    setToast(null);
+  }, []);
 
-  // Init / reset game state
+  const handleGameOver = useCallback((finalScore) => {
+    setScore(finalScore);
+    setGameOver(true);
+    setIsPlaying(false);
+    runningRef.current = false;
+  }, []);
+
+  const saveScore = useCallback(async () => {
+    const name = playerName.trim() || "StudioPlayer";
+    const payload = { firstName: name, lastName: formatScoreProfile(score) };
+    setIsSaving(true);
+
+    try {
+      const existing = await getUser({ id: name }).catch(() => null);
+
+      if (existing?.data?.user?._id) {
+        const current = getScoreUsers([existing.data.user])[0];
+        if (!current || score >= current.score) {
+          await updateUser({ id: existing.data.user._id, ...payload });
+        }
+      } else {
+        await createUser(payload);
+      }
+
+      await refreshScoreboard();
+      setToast({ type: "success", message: `Score saved for ${name}.` });
+    } catch {
+      setToast({ type: "error", message: "Score could not be saved. Check the backend connection." });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [playerName, refreshScoreboard, score]);
+
   useEffect(() => {
-    stateRef.current = {
-      player: createPlayer(),
-      obstacles: [],
-      speed: GAME.baseSpeed,
-      distance: 0,
-      spawnTimer: 1.2,
-      lastTime: performance.now(),
+    if (gameOver && !savedRoundRef.current) {
+      savedRoundRef.current = true;
+      saveScore();
     }
-    setGameOver(false)
-    setScore(0)
-  }, [resetKey])
-
-  // Main loop
-  useEffect(() => {
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-
-    function colors() {
-      return {
-        bg: '#020617', // Slate 950
-        grid: 'rgba(99, 102, 241, 0.08)',
-        ground: '#6366f1', // Indigo 500
-        player: '#818cf8',
-        playerGlow: 'rgba(99, 102, 241, 0.4)',
-        obstacle: '#f43f5e', // Rose 500
-        obstacleGlow: 'rgba(244, 63, 94, 0.3)',
-        text: '#f8fafc',
-      }
-    }
-
-    function tick() {
-      const s = stateRef.current
-      const c = colors()
-      const now = performance.now()
-      let dt = (now - s.lastTime) / 1000
-      dt = Math.min(dt, 0.033)
-      s.lastTime = now
-
-      if (runningRef.current && !s.gameOver) {
-        s.speed += GAME.speedRamp * dt
-        s.distance += s.speed * dt
-
-        // physics
-        s.player.vy += GAME.gravity * dt
-        s.player.y += s.player.vy * dt
-        const floorY = GAME.groundY - s.player.height
-        if (s.player.y >= floorY) {
-          s.player.y = floorY
-          s.player.vy = 0
-          s.player.grounded = true
-        } else {
-          s.player.grounded = false
-        }
-
-        // spawn obstacles
-        s.spawnTimer -= dt
-        if (s.spawnTimer <= 0) {
-          s.obstacles.push(createObstacle(s.speed))
-          s.spawnTimer =
-            GAME.spawnMin + Math.random() * (GAME.spawnMax - GAME.spawnMin) * (GAME.baseSpeed / s.speed)
-        }
-
-        s.obstacles.forEach((o) => (o.x -= s.speed * dt))
-        s.obstacles = s.obstacles.filter((o) => o.x + o.width > -10)
-
-        for (const o of s.obstacles) {
-          if (collides(s.player, o)) {
-            s.gameOver = true
-            const finalScore = Math.floor(s.distance / 10)
-            setScore(finalScore)
-            setGameOver(true)
-            setIsPlaying(false)
-            runningRef.current = false
-            break
-          }
-        }
-
-        setScore(Math.floor(s.distance / 10))
-      }
-
-      // --- draw ---
-      ctx.fillStyle = c.bg
-      ctx.fillRect(0, 0, GAME.width, GAME.height)
-
-      ctx.strokeStyle = c.grid
-      ctx.lineWidth = 1
-      const gridOffset = (s.distance * 0.5) % 40
-      for (let x = -gridOffset; x < GAME.width; x += 40) {
-        ctx.beginPath()
-        ctx.moveTo(x, 0)
-        ctx.lineTo(x, GAME.height)
-        ctx.stroke()
-      }
-
-      ctx.strokeStyle = c.ground
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.moveTo(0, GAME.groundY)
-      ctx.lineTo(GAME.width, GAME.groundY)
-      ctx.stroke()
-      if (isDark) {
-        ctx.shadowColor = c.ground
-        ctx.shadowBlur = 12
-        ctx.stroke()
-        ctx.shadowBlur = 0
-      }
-
-      const p = s.player
-      ctx.fillStyle = c.player
-      if (isDark) {
-        ctx.shadowColor = c.playerGlow
-        ctx.shadowBlur = 18
-      }
-      roundRect(ctx, p.x, p.y, p.width, p.height, 6)
-      ctx.fill()
-      ctx.shadowBlur = 0
-
-      ctx.fillStyle = c.obstacle
-      for (const o of s.obstacles) {
-        if (isDark) {
-          ctx.shadowColor = c.obstacleGlow
-          ctx.shadowBlur = 16
-        }
-        roundRect(ctx, o.x, o.y, o.width, o.height, 4)
-        ctx.fill()
-        ctx.shadowBlur = 0
-      }
-
-      ctx.fillStyle = c.text
-      ctx.font = "bold 20px 'JetBrains Mono', monospace"
-      ctx.textAlign = 'right'
-      ctx.fillText(`${String(Math.floor(s.distance / 10)).padStart(5, '0')} m`, GAME.width - 16, 32)
-
-      rafRef.current = requestAnimationFrame(tick)
-    }
-
-    rafRef.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [isDark]) // Re-run effect only when theme changes
-
-  // Save score whenever the run ends
-  useEffect(() => {
-    if (!gameOver || isSaving) return
-    saveScore()
-    // saveScore intentionally reads latest score/playerName once at end of round
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameOver])
-
-  const jump = useCallback(() => {
-    const s = stateRef.current
-    if (!s || s.gameOver) return
-    if (s.player.grounded) {
-      s.player.vy = GAME.jumpVelocity
-      s.player.grounded = false
-    }
-  }, [])
+  }, [gameOver, saveScore]);
 
   useEffect(() => {
     const handler = (event) => {
-      if (event.code === 'Space' || event.code === 'ArrowUp') {
-        event.preventDefault()
-        if (!runningRef.current && !gameOver) startGame()
-        jump()
+      if (event.code === "Space" || event.code === "ArrowUp") {
+        event.preventDefault();
+        if (!runningRef.current && !gameOver) startGame();
       }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jump, gameOver])
+    };
 
-  const startGame = () => {
-    setResetKey((value) => value + 1)
-    runningRef.current = true
-    setIsPlaying(true)
-    setGameOver(false)
-    setToast(null)
-  }
-
-  const handleCanvasInteract = () => {
-    if (!isPlaying && !gameOver) {
-      startGame()
-      return
-    }
-    jump()
-  }
-
-  const saveScore = async () => {
-    const name = playerName.trim() || 'StudioPlayer'
-    setIsSaving(true)
-
-    try {
-      const payload = { firstName: name, lastName: formatScoreProfile(score) }
-      const existing = await getUser({ id: name }).catch(() => null)
-
-      if (existing?.data?.user?._id) {
-        const current = getScoreUsers([existing.data.user])[0]
-        if (!current || score >= current.score) {
-          await updateUser({ id: existing.data.user._id, ...payload })
-        }
-      } else {
-        await createUser(payload)
-      }
-
-      await refreshScoreboard()
-      setToast({ type: 'success', message: `Score saved for ${name}.` })
-    } catch {
-      setToast({ type: 'error', message: 'Score could not be saved. Check the backend connection.' })
-    } finally {
-      setIsSaving(false)
-    }
-  }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [gameOver, startGame]);
 
   return (
-    <section className="page game-page">
+    <section className="space-y-8">
       <Toast toast={toast} />
 
-      <div className="page-title">
-        <span className="section-icon"><Icon name="game" /></span>
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-end">
         <div>
-          <h1>Runner</h1>
-          <p>Jump the incoming obstacles and rack up distance. Finished runs save through the existing user API.</p>
+          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-widest text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200">
+            <Icon name="game" size={15} />
+            Live Score Mode
+          </span>
+          <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 dark:text-white sm:text-4xl">
+            Runner
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+            Jump incoming obstacles. Finished runs are saved through the existing user API without changing the MongoDB schema.
+          </p>
         </div>
+
+        <button
+          type="button"
+          onClick={startGame}
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-black text-white shadow-lg shadow-emerald-700/20 transition-all hover:-translate-y-0.5 hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 active:translate-y-0"
+        >
+          <Icon name={isPlaying ? "refresh" : "spark"} size={18} />
+          {isPlaying ? "Restart Run" : "Start Run"}
+        </button>
       </div>
 
-      <div className="game-layout">
-        <div className="game-board-panel">
-          <div className="game-toolbar">
-            <label>
-              Player
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+          <div className="mb-5 grid gap-4 lg:grid-cols-[minmax(180px,260px)_1fr_auto] lg:items-end">
+            <label className="grid gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+              Player name
               <input
                 value={playerName}
                 onChange={(event) => setPlayerName(event.target.value)}
-                placeholder="Player name"
+                placeholder="StudioPlayer"
+                className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-slate-950 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
               />
             </label>
-            <div className="game-stats">
-              <span><strong>{score}</strong> Distance</span>
-              <span><strong>{isPlaying ? 'Running' : gameOver ? 'Crashed' : 'Ready'}</strong> Status</span>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["Distance", `${score} m`],
+                ["Status", isPlaying ? "Running" : gameOver ? "Crashed" : "Ready"],
+                ["Save", isSaving ? "Saving" : "Auto"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">{label}</p>
+                  <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">{value}</p>
+                </div>
+              ))}
             </div>
-            <button className="btn btn-primary" type="button" onClick={startGame}>
-              {isPlaying ? 'Restart' : 'Start game'}
-            </button>
           </div>
 
-          <div className="runner-canvas-wrap">
-            <canvas
-              ref={canvasRef}
-              width={GAME.width}
-              height={GAME.height}
-              onClick={handleCanvasInteract}
-              onTouchStart={(event) => {
-                event.preventDefault()
-                handleCanvasInteract()
-              }}
-              className="runner-canvas"
-              aria-label="T-Rex style runner game canvas"
+          <div className="relative overflow-hidden rounded-xl">
+            <RunnerCanvas
+              isDark={theme === "dark"}
+              running={isPlaying}
+              resetKey={resetKey}
+              onGameOver={handleGameOver}
             />
-            {!isPlaying && !gameOver && (
-              <div className="runner-overlay">
-                <button className="btn btn-primary" type="button" onClick={startGame}>
-                  Start game
-                </button>
-                <p>or press Space / tap the canvas</p>
+
+            {!isPlaying && !gameOver ? (
+              <div className="absolute inset-0 grid place-items-center bg-white/80 p-6 text-center backdrop-blur-sm dark:bg-slate-950/78">
+                <div>
+                  <button
+                    type="button"
+                    onClick={startGame}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-black text-white shadow-lg shadow-emerald-700/20 transition-all hover:-translate-y-0.5 hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 active:translate-y-0"
+                  >
+                    <Icon name="spark" size={18} />
+                    Start Run
+                  </button>
+                  <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-400">
+                    Press Space, ArrowUp, or tap the track to jump.
+                  </p>
+                </div>
               </div>
-            )}
+            ) : null}
           </div>
 
-          {gameEnded(gameOver) && (
-            <div className="round-summary">
-              <strong>You crashed.</strong>
-              <span>{isSaving ? 'Saving score...' : `Final distance: ${score} m`}</span>
+          {gameOver ? (
+            <div className="mt-4 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-900 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100 sm:flex-row sm:items-center sm:justify-between">
+              <strong>You crashed at {score} m.</strong>
+              <span className="text-sm font-semibold">{isSaving ? "Saving score..." : "Score saved when eligible."}</span>
             </div>
-          )}
+          ) : null}
         </div>
 
-        <aside className="scoreboard-panel">
-          <div className="panel-heading">
+        <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-5 flex items-start justify-between gap-3">
             <div>
-              <h2>Live Scoreboard</h2>
-              <p>Loaded from MongoDB user records.</p>
+              <h2 className="text-lg font-black text-slate-950 dark:text-white">Live Scoreboard</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Read from MongoDB user records.</p>
             </div>
-            <button className="icon-button" type="button" onClick={refreshScoreboard} aria-label="Refresh scoreboard">
-              <Icon name="refresh" />
+            <button
+              type="button"
+              onClick={refreshScoreboard}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 active:scale-95 dark:border-slate-800 dark:text-slate-300"
+              aria-label="Refresh scoreboard"
+            >
+              <Icon name="refresh" size={17} />
             </button>
           </div>
 
-          <div className="score-list">
-            {scoreboard.length ? (
+          <div className="space-y-3">
+            {isLoadingScores ? (
+              Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="h-14 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+              ))
+            ) : scoreboard.length ? (
               scoreboard.map((entry, index) => (
-                <div className="score-row" key={entry.id}>
-                  <span className="rank">{index + 1}</span>
-                  <span>
-                    <strong>{entry.name}</strong>
-                    <small>{entry.playedAt ? new Date(entry.playedAt).toLocaleDateString() : 'Recent run'}</small>
+                <div
+                  key={entry.id || `${entry.name}-${index}`}
+                  className="grid grid-cols-[36px_1fr_auto] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950"
+                >
+                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-white text-sm font-black text-emerald-700 dark:bg-slate-900 dark:text-emerald-300">
+                    {index + 1}
                   </span>
-                  <b>{entry.score}</b>
+                  <div className="min-w-0">
+                    <p className="truncate font-black text-slate-950 dark:text-white">{entry.name}</p>
+                    <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      {entry.playedAt ? new Date(entry.playedAt).toLocaleString() : "Recent run"}
+                    </p>
+                  </div>
+                  <strong className="text-slate-950 dark:text-white">{entry.score}</strong>
                 </div>
               ))
             ) : (
-              <div className="empty-state">
-                <Icon name="database" />
-                <p>No saved scores yet. Play a round to seed the board.</p>
+              <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-700">
+                <Icon name="database" className="mx-auto text-slate-400" size={26} />
+                <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  No saved scores yet. Play a round to seed the board.
+                </p>
               </div>
             )}
           </div>
         </aside>
       </div>
     </section>
-  )
-}
-
-function gameEnded(gameOver) {
-  return gameOver
+  );
 }
