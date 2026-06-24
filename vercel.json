@@ -1,12 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd client && npm run build",
-  "installCommand": "npm install && cd client && npm install",
-  "outputDirectory": "client/dist",
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "regions": ["iad1"],
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/(.*)",
