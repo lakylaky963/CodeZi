@@ -1,0 +1,16 @@
+{
+  "buildCommand": "cd client && npm run build",
+  "installCommand": "npm install && cd client && npm install",
+  "outputDirectory": "client/dist",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "envPrefix": "VITE_",
+  "regions": ["iad1"],
+  "functions": {
+    "server/**": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
+}

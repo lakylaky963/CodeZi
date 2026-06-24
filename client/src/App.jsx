@@ -5,6 +5,7 @@ import Users from "./pages/Users";
 import Game from "./pages/Game";
 import TechShowcase from "./pages/TechShowcase";
 import Poker from "./pages/Poker";
+import PokerGame from "./pages/PokerGame";
 import SpinWheel from "./pages/SpinWheel";
 import CoinFlip from "./pages/CoinFlip";
 import Resume from "./pages/Resume";
@@ -25,6 +26,7 @@ export default function App() {
           {/* Games */}
           <Route path="/game" element={<Game />} />
           <Route path="/poker" element={<Poker />} />
+          <Route path="/poker-multi" element={<PokerGame />} />
           <Route path="/spin" element={<SpinWheel />} />
           <Route path="/flip" element={<CoinFlip />} />
         </Routes>

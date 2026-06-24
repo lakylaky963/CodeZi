@@ -1,211 +1,259 @@
-/**
- * Poker Room Socket Handler - Game State Machine
- */
-const rooms = {};
+import GameRoom from 'models/gameRoom.model'
+import { STARTING_CHIPS } from '../services/poker/cardUtils'
+import {
+  dealNewHand,
+  applyPlayerAction,
+  processAfterAction,
+  resetHandAfterShowdown,
+  touchActivity,
+} from '../services/poker/gameLogic'
+import { sweepRoom } from '../services/sessionSweeper'
 
-const createDeck = () => {
-  const suits = ['H', 'D', 'C', 'S'];
-  const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-  const deck = [];
-  for (const s of suits) {
-    for (const v of values) deck.push(`${v}${s}`);
-  }
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-};
+const getSanitizedState = (roomDoc, viewerSocketId) => {
+  const room = roomDoc.toObject ? roomDoc.toObject() : JSON.parse(JSON.stringify(roomDoc))
+  const showCards = room.gameStage === 'showdown'
 
-const getSanitizedState = (roomName, viewerSocketId) => {
-  const room = rooms[roomName];
-  if (!room) return null;
   return {
-    ...room,
-    deck: undefined,
-    players: room.players.map((p) => ({
-      ...p,
-      cards: (p.socketId === viewerSocketId || room.gameStage === 'showdown') 
-        ? p.cards 
+    roomName: room.roomName,
+    sessionId: room.sessionId,
+    status: room.status,
+    stage: room.gameStage,
+    gameStage: room.gameStage,
+    pot: room.pot,
+    currentBet: room.currentBet,
+    currentTurn: room.currentTurn,
+    dealerIndex: room.dealerIndex,
+    smallBlind: room.smallBlind,
+    bigBlind: room.bigBlind,
+    communityCards: room.communityCards,
+    players: room.players.map((p, index) => ({
+      socketId: p.socketId,
+      id: p.socketId,
+      username: p.username,
+      name: p.username,
+      seatIndex: p.seatIndex ?? index,
+      chips: p.chips,
+      folded: p.folded,
+      allIn: p.allIn,
+      lastAction: p.lastAction,
+      lastBet: p.lastBet,
+      isDealer: index === room.dealerIndex,
+      isCurrentTurn: index === room.currentTurn,
+      cards: (p.socketId === viewerSocketId || showCards)
+        ? p.cards
         : p.cards.map(() => 'hidden'),
     })),
-  };
-};
-
-const broadcastGameState = (io, roomName) => {
-  const room = rooms[roomName];
-  if (!room) return;
-  room.players.forEach((player) => {
-    const sanitized = getSanitizedState(roomName, player.socketId);
-    io.to(player.socketId).emit('pokerGameStateUpdated', sanitized);
-  });
-};
-
-const advanceStage = (room) => {
-  const stages = ['preflop', 'flop', 'turn', 'river', 'showdown'];
-  const currentIndex = stages.indexOf(room.gameStage);
-  
-  if (room.gameStage === 'river') {
-    room.gameStage = 'showdown';
-    determineWinner(room);
-  } else {
-    room.gameStage = stages[currentIndex + 1];
-    room.playersActedThisRound = 0;
-    room.currentTurn = room.players.findIndex(p => !p.folded); // Simple turn reset
-
-    if (room.gameStage === 'flop') {
-      room.communityCards.push(room.deck.pop(), room.deck.pop(), room.deck.pop());
-    } else if (room.gameStage === 'turn' || room.gameStage === 'river') {
-      room.communityCards.push(room.deck.pop());
-    }
   }
-};
+}
 
-const determineWinner = (room) => {
-  const activePlayers = room.players.filter(p => !p.folded);
-  if (activePlayers.length === 0) return;
-  
-  // Simplified logic: pot split among remaining active players for this MVP handler
-  // In production, integrate 'pokersolver' or similar library here.
-  const share = Math.floor(room.pot / activePlayers.length);
-  activePlayers.forEach(p => {
-    p.chips += share;
-    p.lastAction = `Winner! (+${share})`;
-  });
-  room.pot = 0;
-};
+const broadcastGameState = (io, roomDoc) => {
+  if (!roomDoc) return
+  roomDoc.players.forEach((player) => {
+    const sanitized = getSanitizedState(roomDoc, player.socketId)
+    io.to(player.socketId).emit('pokerGameStateUpdated', sanitized)
+    io.to(player.socketId).emit('gameStateUpdated', sanitized)
+  })
+}
+
+const emitShowdownAndReset = async (io, roomDoc, roomName, results) => {
+  io.to(roomName).emit('showdownResults', results)
+  resetHandAfterShowdown(roomDoc)
+  await roomDoc.save()
+  broadcastGameState(io, roomDoc)
+}
+
+const resolveRoomName = (data) => data?.room || data?.roomId
 
 export default (io, socket) => {
-  socket.on('joinRoom', ({ room, username }) => {
-    socket.join(room);
-    if (!rooms[room]) {
-      rooms[room] = {
-        players: [],
-        pot: 0,
-        currentTurn: 0,
-        communityCards: [],
-        gameStage: 'waiting',
-        currentBet: 0,
-        playersActedThisRound: 0,
-      };
+  socket.on('joinRoom', async (data) => {
+    const room = resolveRoomName(data)
+    const username = (data?.username || data?.playerName || '').trim()
+
+    if (!room) {
+      return socket.emit('error', 'Room name or ID is required')
+    }
+    if (!username) {
+      return socket.emit('error', 'Username is required')
     }
 
-    const exists = rooms[room].players.find((p) => p.socketId === socket.id);
-    if (!exists) {
-      rooms[room].players.push({
-        socketId: socket.id,
-        username: username || `Guest_${socket.id.substring(0, 4)}`,
-        chips: 1000,
-        cards: [],
-        folded: false,
-        lastAction: '',
-        lastBet: 0
-      });
-    }
-    broadcastGameState(io, room);
-  });
+    socket.join(room)
+    console.log(`[Poker] Socket ${socket.id} (${username}) joined room: ${room}`)
 
-  socket.on('startGame', ({ room }) => {
-    const roomState = rooms[room];
-    if (!roomState || roomState.players.length < 2) return;
+    try {
+      let roomDoc = await GameRoom.findOne({ roomName: room })
 
-    roomState.deck = createDeck();
-    roomState.gameStage = 'preflop';
-    roomState.communityCards = [];
-    roomState.pot = 0;
-    roomState.currentBet = 0;
-    roomState.currentTurn = 0;
-    roomState.playersActedThisRound = 0;
-
-    roomState.players.forEach(p => {
-      p.cards = [roomState.deck.pop(), roomState.deck.pop()];
-      p.folded = false;
-      p.lastAction = '';
-      p.lastBet = 0;
-    });
-
-    broadcastGameState(io, room);
-  });
-
-  socket.on('playerAction', ({ room, action, amount = 0 }) => {
-    const roomState = rooms[room];
-    if (!roomState || roomState.gameStage === 'showdown' || roomState.gameStage === 'waiting') return;
-
-    const playerIndex = roomState.players.findIndex(p => p.socketId === socket.id);
-    if (playerIndex !== roomState.currentTurn) {
-      return socket.emit('error', 'It is not your turn');
-    }
-
-    const player = roomState.players[playerIndex];
-
-    // 1. Process Logic
-    if (action === 'fold') {
-      player.folded = true;
-      player.lastAction = 'Fold';
-    } else if (action === 'call') {
-      const callAmount = roomState.currentBet - player.lastBet;
-      if (player.chips < callAmount) return socket.emit('error', 'Insufficient chips');
-      player.chips -= callAmount;
-      roomState.pot += callAmount;
-      player.lastBet = roomState.currentBet;
-      player.lastAction = 'Call';
-    } else if (action === 'raise') {
-      const raiseTotal = amount; 
-      if (raiseTotal <= roomState.currentBet) return socket.emit('error', 'Raise must be higher than current bet');
-      const addition = raiseTotal - player.lastBet;
-      if (player.chips < addition) return socket.emit('error', 'Insufficient chips');
-      player.chips -= addition;
-      roomState.pot += addition;
-      roomState.currentBet = raiseTotal;
-      player.lastBet = raiseTotal;
-      player.lastAction = `Raise to ${amount}`;
-      // When someone raises, we reset playersActedThisRound because others must now match it
-      roomState.playersActedThisRound = 0; 
-    }
-
-    // 2. Game Flow Logic
-    roomState.playersActedThisRound++;
-    const activePlayers = roomState.players.filter(p => !p.folded);
-    
-    // Win by default if everyone else folded
-    if (activePlayers.length === 1) {
-      roomState.gameStage = 'showdown';
-      determineWinner(roomState);
-      broadcastGameState(io, room);
-      return;
-    }
-
-    // Check if round is over
-    if (roomState.playersActedThisRound >= activePlayers.length) {
-      advanceStage(roomState);
-      roomState.players.forEach(p => p.lastBet = 0); // Reset round betting
-      roomState.currentBet = 0;
-    } else {
-      // Find next active player
-      let nextTurn = (roomState.currentTurn + 1) % roomState.players.length;
-      while (roomState.players[nextTurn].folded) {
-        nextTurn = (nextTurn + 1) % roomState.players.length;
+      if (roomDoc?.status === 'in_hand') {
+        return socket.emit('error', 'Hand in progress — wait for the round to finish')
       }
-      roomState.currentTurn = nextTurn;
+
+      if (!roomDoc) {
+        roomDoc = new GameRoom({
+          roomName: room,
+          players: [],
+          pot: 0,
+          currentTurn: 0,
+          communityCards: [],
+          gameStage: 'waiting',
+          status: 'lobby',
+          currentBet: 0,
+          playersActedThisRound: 0,
+          deck: [],
+          dealerIndex: -1,
+        })
+      }
+
+      const nameTaken = roomDoc.players.some(
+        (p) => p.username.toLowerCase() === username.toLowerCase() && p.socketId !== socket.id,
+      )
+      if (nameTaken) {
+        return socket.emit('error', 'Username already taken in this room')
+      }
+
+      const exists = roomDoc.players.find((p) => p.socketId === socket.id)
+      if (!exists) {
+        roomDoc.players.push({
+          socketId: socket.id,
+          username,
+          seatIndex: roomDoc.players.length,
+          chips: STARTING_CHIPS,
+          cards: [],
+          folded: false,
+          allIn: false,
+          lastAction: '',
+          lastBet: 0,
+          hasActedThisRound: false,
+        })
+      } else {
+        exists.username = username
+      }
+
+      touchActivity(roomDoc)
+      await roomDoc.save()
+      broadcastGameState(io, roomDoc)
+    } catch (err) {
+      console.error(`[Poker] Error in joinRoom for socket ${socket.id}:`, err)
+      socket.emit('error', 'Failed to join game session')
     }
+  })
 
-    broadcastGameState(io, room);
-  });
+  socket.on('leaveRoom', async (data) => {
+    const room = resolveRoomName(data)
+    if (!room) return
 
-  socket.on('disconnecting', () => {
-    for (const room of socket.rooms) {
-      if (rooms[room]) {
-        rooms[room].players = rooms[room].players.filter((p) => p.socketId !== socket.id);
-        if (rooms[room].players.length === 0) {
-          delete rooms[room];
-        } else {
-          // Ensure turn doesn't point to an out-of-bounds index after removal
-          if (rooms[room].currentTurn >= rooms[room].players.length) {
-            rooms[room].currentTurn = 0;
-          }
-          broadcastGameState(io, room);
+    try {
+      const roomDoc = await GameRoom.findOne({ roomName: room })
+      if (!roomDoc) return
+
+      roomDoc.players = roomDoc.players.filter((p) => p.socketId !== socket.id)
+      socket.leave(room)
+
+      if (roomDoc.players.length === 0) {
+        await sweepRoom(io, room, 'all_players_left')
+      } else {
+        if (roomDoc.currentTurn >= roomDoc.players.length) {
+          roomDoc.currentTurn = 0
         }
+        touchActivity(roomDoc)
+        await roomDoc.save()
+        broadcastGameState(io, roomDoc)
+      }
+    } catch (err) {
+      console.error(`[Poker] Error in leaveRoom for socket ${socket.id}:`, err)
+    }
+  })
+
+  socket.on('startGame', async (data) => {
+    const room = typeof data === 'string' ? data : resolveRoomName(data)
+    if (!room) {
+      return socket.emit('error', 'Room ID is required')
+    }
+
+    try {
+      const roomDoc = await GameRoom.findOne({ roomName: room })
+      if (!roomDoc || roomDoc.players.length < 2) {
+        return socket.emit('error', 'Cannot start game with less than 2 players')
+      }
+      if (roomDoc.gameStage !== 'waiting' && roomDoc.status !== 'lobby') {
+        return socket.emit('error', 'A hand is already in progress')
+      }
+
+      dealNewHand(roomDoc)
+
+      roomDoc.players.forEach((p) => {
+        io.to(p.socketId).emit('receiveCards', p.cards)
+      })
+
+      await roomDoc.save()
+      broadcastGameState(io, roomDoc)
+    } catch (err) {
+      console.error(`[Poker] Error in startGame for room ${room}:`, err)
+      socket.emit('error', 'Failed to start game session')
+    }
+  })
+
+  socket.on('playerAction', async (data) => {
+    const room = resolveRoomName(data)
+    const action = data?.action
+
+    if (!room || !action) return
+
+    try {
+      const roomDoc = await GameRoom.findOne({ roomName: room })
+      if (!roomDoc || roomDoc.gameStage === 'waiting') {
+        return socket.emit('error', 'No active hand')
+      }
+
+      const playerIndex = roomDoc.players.findIndex((p) => p.socketId === socket.id)
+      if (playerIndex === -1) {
+        return socket.emit('error', 'You are not in this room')
+      }
+      if (playerIndex !== roomDoc.currentTurn) {
+        return socket.emit('error', 'It is not your turn')
+      }
+
+      applyPlayerAction(roomDoc, playerIndex, action, data?.amount || 20)
+      const results = processAfterAction(roomDoc)
+
+      if (results) {
+        await roomDoc.save()
+        broadcastGameState(io, roomDoc)
+        await emitShowdownAndReset(io, roomDoc, room, results)
+      } else {
+        await roomDoc.save()
+        broadcastGameState(io, roomDoc)
+      }
+    } catch (err) {
+      console.error(`[Poker] Error in playerAction for socket ${socket.id}:`, err)
+      socket.emit('error', err.message || 'Failed to process game action')
+    }
+  })
+
+  socket.on('disconnecting', async () => {
+    console.log(`[Poker] Socket disconnecting: ${socket.id}`)
+    for (const room of socket.rooms) {
+      if (room === socket.id) continue
+
+      try {
+        const roomDoc = await GameRoom.findOne({ roomName: room })
+        if (!roomDoc) continue
+
+        roomDoc.players = roomDoc.players.filter((p) => p.socketId !== socket.id)
+
+        if (roomDoc.players.length === 0) {
+          await sweepRoom(io, room, 'all_players_left')
+        } else {
+          if (roomDoc.currentTurn >= roomDoc.players.length) {
+            roomDoc.currentTurn = 0
+          }
+          touchActivity(roomDoc)
+          await roomDoc.save()
+          broadcastGameState(io, roomDoc)
+        }
+      } catch (err) {
+        console.error(`[Poker] Error during disconnect cleanup for room "${room}":`, err)
       }
     }
-  });
-};
+  })
+}
+
+export { sweepRoom as pruneRoomSession }

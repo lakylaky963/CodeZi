@@ -1,25 +1,54 @@
 import mongoose from 'mongoose'
 
-const connectMongo = () =>
-  new Promise((res, rej) => {
-    const mongoURI = process.env.MONGO_URI || process.env.DATABASE_URL
+const forceLocal = process.env.FORCE_LOCAL_MONGO === 'true'
+const localMongoURI = process.env.LOCAL_MONGO_URI || 'mongodb://127.0.0.1:27017/codezi'
 
-    if (!mongoURI) {
-      console.log('No MongoDB URL found in MONGO_URI or DATABASE_URL; continuing without DB connection.')
-      res()
-      return
+const connectWithURI = async (uri, label) => {
+  if (!uri) {
+    throw new Error(`No URI provided for ${label}`)
+  }
+
+  await mongoose.connect(uri)
+  console.log(`✅ Connected to MongoDB via ${label}`)
+}
+
+const connectMongo = async () => {
+  const onlineMongoURI = process.env.MONGO_URI || process.env.DATABASE_URL
+
+  if (forceLocal) {
+    console.log('⚠️ FORCE_LOCAL_MONGO is enabled. Connecting to local MongoDB only.')
+    try {
+      await connectWithURI(localMongoURI, 'local MongoDB')
+      return true
+    } catch (localError) {
+      console.error('⚠️ Local MongoDB connection failed:', localError.message || localError)
+      console.log('🚫 No MongoDB connection established; continuing without DB.')
+      return false
     }
+  }
 
-    mongoose.connect(mongoURI).catch((err) => {
-      console.error(err)
-      rej(err)
-    })
+  if (onlineMongoURI) {
+    console.log('🌐 Trying online MongoDB connection from .env...')
+    try {
+      await connectWithURI(onlineMongoURI, 'online MongoDB')
+      return true
+    } catch (onlineError) {
+      console.error('⚠️ Online MongoDB connection failed:', onlineError.message || onlineError)
+      console.log('🔄 Falling back to local MongoDB...')
+    }
+  } else {
+    console.log('⚠️ No online MongoDB URL found in MONGO_URI or DATABASE_URL.')
+    console.log('🔄 Trying local MongoDB...')
+  }
 
-    const db = mongoose.connection
-    db.once('open', () => {
-      console.log('connected to mongodb')
-      res()
-    })
-  })
+  try {
+    await connectWithURI(localMongoURI, 'local MongoDB')
+    return true
+  } catch (localError) {
+    console.error('⚠️ Local MongoDB connection failed:', localError.message || localError)
+    console.log('🚫 No MongoDB connection established; continuing without DB.')
+    return false
+  }
+}
 
 export default connectMongo
