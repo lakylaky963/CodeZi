@@ -3,16 +3,19 @@ name: Deploy Web App to Homelab
 on:
   push:
     branches:
-      - main # Change this if your main branch is called master
+      - main
 
 jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - name: Pull latest code from GitHub
+      # This built-in tool handles all the authentication perfectly automatically
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Copy Files to Web Directory
         run: |
-          cd /var/www/html
-          git pull origin main
+          rsync -avz --delete ./ /var/www/html/
 
       - name: Deploy Backend Updates
         run: |
