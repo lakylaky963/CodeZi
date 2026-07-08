@@ -20,11 +20,10 @@ jobs:
         run: |
           cd /var/www/html/server
           npm install
-          pm2 restart all || pm2 start src/server.js --name "backend-api"
+          pm2 restart backend-api || pm2 start src/server.js --name "backend-api"
 
-      # Commenting out frontend deployment for now until you're ready to set up the client folder
-      # - name: Deploy Frontend Updates
-      #   run: |
-      #     cd /var/www/html/frontend
-      #     npm install
-      #     npm run build
+      - name: Deploy Frontend Updates
+        run: |
+          cd /var/www/html/frontend
+          npm install
+          npm run build
