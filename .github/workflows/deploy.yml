@@ -24,6 +24,6 @@ jobs:
 
       - name: Deploy Frontend Updates
         run: |
-          cd /var/www/html/frontend
+          cd /var/www/html/client
           npm install
           npm run build
